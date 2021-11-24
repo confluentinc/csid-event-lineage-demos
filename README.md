@@ -8,12 +8,15 @@ Prequisites:
 * Java 11 or later
 * Maven
 
-```shell
+First time build:
+```
 ./run_demo.sh
 ```
 
+
+
 Once containers are up after a delay of approximately 1-2 minutes trace/payload information 
-will be available in the Jaeger UI at http://0.0.0.0:16686.
+will be available in the Jaeger UI at http://0.0.0.0:16686
 
 In addition:
 * metrics are made available in Prometheus at http://0.0.0.0:9090
