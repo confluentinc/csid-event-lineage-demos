@@ -28,6 +28,6 @@ public class Constants {
     public static final String REGION_1 = "REGION1";
     public static final String REGION_2 = "REGION2";
 
-    public static final String BOOTSTRAP_KAFKA_SERVER = "127.0.0.1:29092";
+    public static final String BOOTSTRAP_KAFKA_SERVER = "kafka:9092";
 
 }
