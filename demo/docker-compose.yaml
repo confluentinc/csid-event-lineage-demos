@@ -100,21 +100,6 @@ services:
     depends_on:
       - jaeger-agent
 
-
-  # Jaeger
- # jaeger-all-in-one:
- #   image: jaegertracing/all-in-one:latest
- #   ports:
- #     - "16686:16686"
- #     - "14268"
- #     - "14250"
-
-  # Zipkin
-  zipkin-all-in-one:
-    image: openzipkin/zipkin:latest
-    ports:
-      - "9411:9411"
-
   # Collector
   otel-collector:
     image: ${OTELCOL_IMG}
@@ -130,7 +115,6 @@ services:
       - "55670:55679" # zpages extension
     depends_on:
       - jaeger-agent
-      - zipkin-all-in-one
 
   javaapps:
     build:
@@ -139,26 +123,6 @@ services:
     depends_on:
       - kafka
       - otel-collector
-  #  demo-client:
-#    build:
-#      dockerfile: Dockerfile
-#      context: ./client
-#    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
-#      - DEMO_SERVER_ENDPOINT=http://demo-server:7080/hello
-#    depends_on:
-#      - demo-server
-
-#  demo-server:
-#    build:
-#      dockerfile: Dockerfile
-#      context: ./server
-#    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
-#    ports:
-#      - "7080"
-#    depends_on:
-#      - otel-collector
 
   prometheus:
     container_name: prometheus
