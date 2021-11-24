@@ -47,23 +47,12 @@ public class Producer {
 
     private static void produceCardDetails() {
         Properties properties = properties();
-        properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        KafkaProducer<Long, String> kafkaProducer = new KafkaProducer<>(properties);
-        String cardDetails="{\n"
-            + "    \"cardNumber\": 4624365230583743,\n"
-            + "    \"cvv\": 732,\n"
-            + "    \"expiry\": \"01/05/2023\",\n"
-            + "    \"availableBalance\": 1350,\n"
-            + "    \"bank\": \"Postbank\",\n"
-            + "    \"accountNumber\": 382912341,\n"
-            + "    \"authorizedCountries\": [\n"
-            + "        \"Germany\",\n"
-            + "        \"Austria\"\n"
-            + "    ]\n"
-            + "}";
-            kafkaProducer.send(new ProducerRecord<>(CARD_DETAILS_TOPIC, 4624365230583743L, cardDetails));
+        properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonCardSerde.class);
+        KafkaProducer<Long, Card> kafkaProducer = new KafkaProducer<>(properties);
+        DemoData.getScenarioData().forEach((key, data) -> {
+            kafkaProducer.send(new ProducerRecord<>(CARD_DETAILS_TOPIC, data.getCard().getCardNumber(), data.getCard()));
             kafkaProducer.flush();
-
+        });
         sleep(500);
         kafkaProducer.close();
     }
