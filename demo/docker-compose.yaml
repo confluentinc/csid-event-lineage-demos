@@ -1,0 +1,169 @@
+version: "2"
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 22181:2181
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.14.1
+    depends_on:
+      - elasticsearch
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+
+  elasticsearch:
+    hostname: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    restart: on-failure
+    environment:
+      - cluster.name=jaeger-cluster
+      - discovery.type=single-node
+      - http.host=0.0.0.0
+      - transport.host=127.0.0.1
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+
+  jaeger-collector:
+    hostname: jaeger-collector
+    image: jaegertracing/jaeger-collector
+    ports:
+      - "14269:14269"
+      - "14268:14268"
+      - "14267:14267"
+      - "14250:14250"
+    restart: on-failure
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    command: [
+        "--es.server-urls=http://elasticsearch:9200",
+        "--es.num-shards=1",
+        "--es.num-replicas=0",
+        "--log-level=error"
+    ]
+    depends_on:
+      - elasticsearch
+
+  jaeger-agent:
+    image: jaegertracing/jaeger-agent
+    hostname: jaeger-agent
+    command: ["--reporter.grpc.host-port=jaeger-collector:14250"]
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+    restart: on-failure
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    depends_on:
+      - jaeger-collector
+
+  jaeger-query:
+    image: jaegertracing/jaeger-query
+    hostname: jaeger-query
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - no_proxy=localhost
+    ports:
+      - "16686:16686"
+      - "16687:16687"
+    restart: on-failure
+    command: [
+        "--es.server-urls=http://elasticsearch:9200",
+        "--span-storage.type=elasticsearch",
+        "--log-level=debug"
+    ]
+    depends_on:
+      - jaeger-agent
+
+
+  # Jaeger
+ # jaeger-all-in-one:
+ #   image: jaegertracing/all-in-one:latest
+ #   ports:
+ #     - "16686:16686"
+ #     - "14268"
+ #     - "14250"
+
+  # Zipkin
+  zipkin-all-in-one:
+    image: openzipkin/zipkin:latest
+    ports:
+      - "9411:9411"
+
+  # Collector
+  otel-collector:
+    image: ${OTELCOL_IMG}
+    command: ["--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "4317:4317"        # OTLP gRPC receiver
+      - "55670:55679" # zpages extension
+    depends_on:
+      - jaeger-agent
+      - zipkin-all-in-one
+
+  javaapps:
+    build:
+      dockerfile: Dockerfile
+      context: ./javaapps
+    depends_on:
+      - kafka
+      - otel-collector
+  #  demo-client:
+#    build:
+#      dockerfile: Dockerfile
+#      context: ./client
+#    environment:
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+#      - DEMO_SERVER_ENDPOINT=http://demo-server:7080/hello
+#    depends_on:
+#      - demo-server
+
+#  demo-server:
+#    build:
+#      dockerfile: Dockerfile
+#      context: ./server
+#    environment:
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+#    ports:
+#      - "7080"
+#    depends_on:
+#      - otel-collector
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
