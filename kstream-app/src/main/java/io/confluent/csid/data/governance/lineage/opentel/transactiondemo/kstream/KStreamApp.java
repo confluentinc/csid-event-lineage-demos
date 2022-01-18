@@ -24,26 +24,17 @@ import static io.confluent.csid.data.governance.lineage.opentel.transactiondemo.
 import static io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.Constants.INPUT_TOPIC;
 import static io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.Constants.TRANSACTION_OUTPUT_TOPIC;
 import static io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.Constants.TRANSACTION_PROCESSING_TOPIC;
-import static io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.JsonPayloadMapper.mapToJson;
 
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.JsonCardSerde;
-import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.JsonCardValueWithHeadersSerde;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.JsonTransactionSerde;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.demodata.DemoData;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.demodata.ScenarioData;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.domain.Card;
-import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.domain.CardValueWithHeaders;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.domain.Transaction;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.domain.TransactionStatus;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.domain.TransactionStatus.Status;
-import io.opentelemetry.api.GlobalOpenTelemetry;
-import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.context.Context;
-import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import java.nio.charset.StandardCharsets;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -53,7 +44,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -67,226 +57,192 @@ import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.ValueJoiner;
-import org.apache.kafka.streams.kstream.ValueTransformerWithKey;
-import org.apache.kafka.streams.kstream.ValueTransformerWithKeySupplier;
-import org.apache.kafka.streams.processor.ProcessorContext;
 
 @SuppressWarnings({"WeakerAccess", "unused"})
 @Slf4j
 public class KStreamApp {
 
-    static TextMapGetter<Set<Entry<String, byte[]>>> getter =
-        new TextMapGetter<>() {
-            @Override
-            public Iterable<String> keys(Set<Entry<String, byte[]>> headers) {
-                return headers.stream()
-                    .map(Entry::getKey)
-                    .collect(Collectors.toList());
-            }
+  static TextMapGetter<Set<Entry<String, byte[]>>> getter =
+      new TextMapGetter<>() {
+        @Override
+        public Iterable<String> keys(Set<Entry<String, byte[]>> headers) {
+          return headers.stream()
+              .map(Entry::getKey)
+              .collect(Collectors.toList());
+        }
 
-            @Override
-            public String get(Set<Entry<String, byte[]>> headers, String key) {
-                if (headers == null) {
-                    return null;
+        @Override
+        public String get(Set<Entry<String, byte[]>> headers, String key) {
+          if (headers == null) {
+            return null;
+          }
+          return headers.stream()
+              .filter(e -> e.getKey().equals(key))
+              .findFirst()
+              .map(Entry::getValue)
+              .map(v -> new String(v, StandardCharsets.UTF_8))
+              .orElse(null);
+
+        }
+      };
+
+  public static void main(final String[] args) {
+    String app = System.getProperty("app");
+    final Properties props = new Properties();
+    props.put(StreamsConfig.APPLICATION_ID_CONFIG, app);
+    props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_KAFKA_SERVER);
+    props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, LongSerde.class);
+    props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, JsonTransactionSerde.class);
+    props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
+    props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000L);
+
+    // setting offset reset to earliest so that we can re-run the demo code with the same pre-loaded data
+    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
+    final StreamsBuilder builder = new StreamsBuilder();
+    switch (app) {
+      case "card-enrichment":
+        recreateTopics(props);
+        builder.stream(INPUT_TOPIC, Consumed.with(Serdes.Long(), new JsonTransactionSerde()))
+            .mapValues(v -> {
+              v.setCard(DemoData.getScenarioData().get(v.getTransactionId()).getCard());
+              return v;
+            }).to(BALANCE_VERIFICATION_TOPIC);
+        break;
+      case "balance-verification":
+        builder.stream(BALANCE_VERIFICATION_TOPIC,
+                Consumed.with(Serdes.Long(), new JsonTransactionSerde())).split()
+            .branch(((key, value) -> value.getAmount() <= value.getCard().getAvailableBalance()),
+                Branched.withConsumer(x -> x.to(ENTITY_ENRICHMENTS_TOPIC)))
+            .defaultBranch(Branched.withConsumer(x -> x.mapValues(v -> {
+              v.setStatus(new TransactionStatus(Status.REJECTED, "Insufficient balance"));
+              return v;
+            }).to(TRANSACTION_OUTPUT_TOPIC)));
+        break;
+      case "entity-enrichment":
+        builder.stream(ENTITY_ENRICHMENTS_TOPIC,
+                Consumed.with(Serdes.Long(), new JsonTransactionSerde()))
+            .mapValues(v -> {
+              ScenarioData scenarioData = DemoData.getScenarioData().get(v.getTransactionId());
+              v.setPayee(scenarioData.getPayee());
+              v.setMerchant(scenarioData.getMerchant());
+              return v;
+            }).to(FRAUD_DETECTION_TOPIC);
+        break;
+
+      case "fraud-detection":
+        builder.stream(FRAUD_DETECTION_TOPIC,
+                Consumed.with(Serdes.Long(), new JsonTransactionSerde()))
+            .mapValues(v -> {
+              if (!isCountryAuthorized(v)) {
+                v.setStatus(new TransactionStatus(Status.REJECTED,
+                    "Transaction country not authorized for card"));
+              } else if (!isLocationInVicinity(v)) {
+                v.setStatus(new TransactionStatus(Status.REJECTED,
+                    "Transaction location does not match Merchant location"));
+              }
+              return v;
+            })
+            .split()
+            .branch((key, value) -> Status.REJECTED == value.getStatus().getStatus(),
+                Branched.withConsumer(x -> x.to(TRANSACTION_OUTPUT_TOPIC)))
+            .defaultBranch(Branched.withConsumer(x -> x.to(TRANSACTION_PROCESSING_TOPIC)));
+        break;
+
+      case "transaction-processor":
+        builder.stream(TRANSACTION_PROCESSING_TOPIC,
+                Consumed.with(Serdes.Long(), new JsonTransactionSerde()))
+            .mapValues(v -> {
+              v.setStatus(new TransactionStatus(Status.PROCESSED, null));
+              return v;
+            }).to(TRANSACTION_OUTPUT_TOPIC);
+        break;
+      case "card-enrichment-ktable":
+        recreateTopics(props);
+        KTable<Long, Card> cardDetails = builder.stream(CARD_DETAILS_TOPIC,
+                Consumed.with(Serdes.Long(), new JsonCardSerde()))
+            .toTable(Materialized.with(Serdes.Long(), new JsonCardSerde()));
+        builder.stream(INPUT_TOPIC, Consumed.with(Serdes.Long(), new JsonTransactionSerde()))
+            .leftJoin(cardDetails,
+                new ValueJoiner<Transaction, Card, Object>() {
+                  @Override
+                  public Object apply(final Transaction value1, final Card value2) {
+                    value1.setCard(value2);
+                    return value1;
+                  }
                 }
-                return headers.stream()
-                    .filter(e -> e.getKey().equals(key))
-                    .findFirst()
-                    .map(Entry::getValue)
-                    .map(v -> new String(v, StandardCharsets.UTF_8))
-                    .orElse(null);
-
-            }
-        };
-
-    public static void main(final String[] args) {
-        String app = System.getProperty("app");
-        final Properties props = new Properties();
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, app);
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_KAFKA_SERVER);
-        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, LongSerde.class);
-        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, JsonTransactionSerde.class);
-        props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
-        props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000L);
-
-        // setting offset reset to earliest so that we can re-run the demo code with the same pre-loaded data
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-
-        final StreamsBuilder builder = new StreamsBuilder();
-        switch (app) {
-            case "card-enrichment":
-                recreateTopics(props);
-                builder.stream(INPUT_TOPIC, Consumed.with(Serdes.Long(), new JsonTransactionSerde())).mapValues(v -> {
-                    v.setCard(DemoData.getScenarioData().get(v.getTransactionId()).getCard());
-                    return v;
-                }).to(BALANCE_VERIFICATION_TOPIC);
-                break;
-            case "balance-verification":
-                builder.stream(BALANCE_VERIFICATION_TOPIC, Consumed.with(Serdes.Long(), new JsonTransactionSerde())).split()
-                    .branch(((key, value) -> value.getAmount() <= value.getCard().getAvailableBalance()),
-                        Branched.withConsumer(x -> x.to(ENTITY_ENRICHMENTS_TOPIC)))
-                    .defaultBranch(Branched.withConsumer(x -> x.mapValues(v -> {
-                        v.setStatus(new TransactionStatus(Status.REJECTED, "Insufficient balance"));
-                        return v;
-                    }).to(TRANSACTION_OUTPUT_TOPIC)));
-                break;
-            case "entity-enrichment":
-                builder.stream(ENTITY_ENRICHMENTS_TOPIC, Consumed.with(Serdes.Long(), new JsonTransactionSerde()))
-                    .mapValues(v -> {
-                        ScenarioData scenarioData = DemoData.getScenarioData().get(v.getTransactionId());
-                        v.setPayee(scenarioData.getPayee());
-                        v.setMerchant(scenarioData.getMerchant());
-                        return v;
-                    }).to(FRAUD_DETECTION_TOPIC);
-                break;
-
-            case "fraud-detection":
-                builder.stream(FRAUD_DETECTION_TOPIC, Consumed.with(Serdes.Long(), new JsonTransactionSerde()))
-                    .mapValues(v -> {
-                        if (!isCountryAuthorized(v)) {
-                            v.setStatus(new TransactionStatus(Status.REJECTED, "Transaction country not authorized for card"));
-                        } else if (!isLocationInVicinity(v)) {
-                            v.setStatus(new TransactionStatus(Status.REJECTED, "Transaction location does not match Merchant location"));
-                        }
-                        return v;
-                    })
-                    .split()
-                    .branch((key, value) -> Status.REJECTED == value.getStatus().getStatus(),
-                        Branched.withConsumer(x -> x.to(TRANSACTION_OUTPUT_TOPIC)))
-                    .defaultBranch(Branched.withConsumer(x -> x.to(TRANSACTION_PROCESSING_TOPIC)));
-                break;
-
-            case "transaction-processor":
-                builder.stream(TRANSACTION_PROCESSING_TOPIC, Consumed.with(Serdes.Long(), new JsonTransactionSerde()))
-                    .mapValues(v -> {
-                        v.setStatus(new TransactionStatus(Status.PROCESSED, null));
-                        return v;
-                    }).to(TRANSACTION_OUTPUT_TOPIC);
-                break;
-            case "card-enrichment-ktable":
-                recreateTopics(props);
-                KTable<Long, CardValueWithHeaders> cardDetails = builder.stream(CARD_DETAILS_TOPIC, Consumed.with(Serdes.Long(), new JsonCardSerde()))
-                    .transformValues(
-                        (ValueTransformerWithKeySupplier<Long, Card,CardValueWithHeaders>) () -> new ValueTransformerWithKey<>() {
-                            ProcessorContext context;
-
-                            @Override
-                            public void init(final ProcessorContext context) {
-                                this.context = context;
-                            }
-
-                            @Override
-                            public CardValueWithHeaders transform(final Long key, final Card value) {
-                                log.info("Storing headers for Card nr={}, headers:{}", value.getCardNumber(),
-                                    Arrays.stream(context.headers().toArray())
-                                        .map(header -> Pair.of(header.key(), new String(header.value(), StandardCharsets.UTF_8))).collect(
-                                            Collectors.toList()));
-
-                                return new CardValueWithHeaders(
-                                    Arrays.stream(context.headers().toArray())
-                                        .map(header -> new SimpleEntry<>(header.key(), header.value()))
-                                        .collect(Collectors.toSet()),
-                                    value);
-                            }
-
-                            @Override
-                            public void close() {
-
-                            }
-                        }).toTable(Materialized.with(Serdes.Long(),new JsonCardValueWithHeadersSerde()));
-                builder.stream(INPUT_TOPIC, Consumed.with(Serdes.Long(), new JsonTransactionSerde())).leftJoin(cardDetails,
-                    new ValueJoiner<Transaction, CardValueWithHeaders, Object>() {
-                        @Override
-                        public Object apply(final Transaction value1, final CardValueWithHeaders value2) {
-                            log.info("Getting headers for Join Card nr={}, headers:{}", value1.getCard().getCardNumber(),
-                                value2.getHeaders().stream()
-                                    .map(header -> Pair.of(header.getKey(), new String(header.getValue(), StandardCharsets.UTF_8))).collect(
-                                        Collectors.toList()));
-                            OpenTelemetry openTelemetry = GlobalOpenTelemetry.get();
-                            Context extractedContext = openTelemetry.getPropagators().getTextMapPropagator()
-                                .extract(Context.current(), value2.getHeaders(), getter);
-
-                            Span joinSpan = openTelemetry.getTracer("io.opentelemetry.kafka-streams-2.6")
-                                .spanBuilder("KTable-join").addLink(Span.fromContext(extractedContext).getSpanContext())
-                                .setAttribute("payload.value", mapToJson(value2.getValue()))
-                                .setParent(Context.current())
-                                .startSpan();
-                            try (Scope scope = joinSpan.makeCurrent()) {
-                                value1.setCard(value2.getValue());
-                                return value1;
-                            } finally {
-                                joinSpan.end();
-                            }
-                        }
-                    }
-                ).to(BALANCE_VERIFICATION_TOPIC);
-                break;
-            default:
-                throw new IllegalArgumentException(
-                    "Application type not recognized - only accepted values are :"
-                        + " card-details-enrich, balance-verification, entity-enrichment, fraud-detection, transaction-processor)");
-        }
-
-        final KafkaStreams streams = new KafkaStreams(builder.build(), props);
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        // attach shutdown handler to catch control-c
-        Runtime.getRuntime().
-
-            addShutdownHook(new Thread("streams-" + app + "-shutdown-hook") {
-                @Override
-                public void run() {
-                    streams.close();
-                    latch.countDown();
-                }
-            });
-
-        try {
-            streams.start();
-            latch.await();
-        } catch (
-            final Throwable e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
-        System.exit(0);
+            ).to(BALANCE_VERIFICATION_TOPIC);
+        break;
+      default:
+        throw new IllegalArgumentException(
+            "Application type not recognized - only accepted values are :"
+                + " card-details-enrich, balance-verification, entity-enrichment, fraud-detection, transaction-processor)");
     }
 
-    private static boolean isLocationInVicinity(final Transaction transaction) {
-        double threshold = 1;
+    final KafkaStreams streams = new KafkaStreams(builder.build(), props);
+    final CountDownLatch latch = new CountDownLatch(1);
 
-        return
-            (Math.abs(transaction.getLocation().getLatitude() - transaction.getMerchant().getLocation().getLatitude()) < threshold)
-                &&
-                (Math.abs(transaction.getLocation().getLongitude() - transaction.getMerchant().getLocation().getLongitude()) < threshold);
+    // attach shutdown handler to catch control-c
+    Runtime.getRuntime().
+
+        addShutdownHook(new Thread("streams-" + app + "-shutdown-hook") {
+          @Override
+          public void run() {
+            streams.close();
+            latch.countDown();
+          }
+        });
+
+    try {
+      streams.start();
+      latch.await();
+    } catch (
+        final Throwable e) {
+      e.printStackTrace();
+      System.exit(1);
     }
+    System.exit(0);
+  }
 
-    private static boolean isCountryAuthorized(Transaction transaction) {
-        return transaction.getCard().getAuthorizedCountries().contains(transaction.getMerchant().getAddress().getCountry());
+  private static boolean isLocationInVicinity(final Transaction transaction) {
+    double threshold = 1;
+
+    return
+        (Math.abs(transaction.getLocation().getLatitude() - transaction.getMerchant().getLocation()
+            .getLatitude()) < threshold)
+            &&
+            (Math.abs(
+                transaction.getLocation().getLongitude() - transaction.getMerchant().getLocation()
+                    .getLongitude()) < threshold);
+  }
+
+  private static boolean isCountryAuthorized(Transaction transaction) {
+    return transaction.getCard().getAuthorizedCountries()
+        .contains(transaction.getMerchant().getAddress().getCountry());
+  }
+
+  private static void deleteTopic(String topicName, AdminClient adminClient) {
+    try {
+      adminClient.deleteTopics(
+          Collections.singleton(topicName)).all().get();
+      Thread.sleep(500);
+    } catch (Exception e) {
+      log.warn("Error deleting topic ", e);
     }
+  }
 
-    private static void deleteTopic(String topicName, AdminClient adminClient) {
-        try {
-            adminClient.deleteTopics(
-                Collections.singleton(topicName)).all().get();
-            Thread.sleep(500);
-        } catch (Exception e) {
-            log.warn("Error deleting topic ", e);
-        }
-    }
+  private static void recreateTopics(Properties props) {
+    List<String> topics = Arrays.asList(
+        INPUT_TOPIC,
+        BALANCE_VERIFICATION_TOPIC,
+        ENTITY_ENRICHMENTS_TOPIC,
+        FRAUD_DETECTION_TOPIC,
+        TRANSACTION_PROCESSING_TOPIC,
+        TRANSACTION_OUTPUT_TOPIC,
+        CARD_DETAILS_TOPIC
+    );
 
-    private static void recreateTopics(Properties props) {
-        List<String> topics = Arrays.asList(
-            INPUT_TOPIC,
-            BALANCE_VERIFICATION_TOPIC,
-            ENTITY_ENRICHMENTS_TOPIC,
-            FRAUD_DETECTION_TOPIC,
-            TRANSACTION_PROCESSING_TOPIC,
-            TRANSACTION_OUTPUT_TOPIC,
-            CARD_DETAILS_TOPIC
-        );
-
-        AdminClient kafkaAdminClient = AdminClient.create(props);
+    AdminClient kafkaAdminClient = AdminClient.create(props);
          /*
          topics.forEach(topic->deleteTopic(topic, kafkaAdminClient));
 
@@ -300,25 +256,26 @@ public class KStreamApp {
             }
         } while (count > 0);
 */
-        var res = kafkaAdminClient.createTopics(
-            topics.stream()
-                .map(topic -> new NewTopic(topic, 1, (short) 1))
-                .collect(Collectors.toList()));
+    var res = kafkaAdminClient.createTopics(
+        topics.stream()
+            .map(topic -> new NewTopic(topic, 1, (short) 1))
+            .collect(Collectors.toList()));
 
-        try {
-            res.all().get();
-        } catch (Exception e) {
-            log.warn("Error creating topic ", e);
-        }
-        int count = 0;
-
-        do {
-            try {
-                Thread.sleep(100);
-                count = (int) kafkaAdminClient.listTopics().names().get().stream().filter(topics::contains).count();
-            } catch (Exception e) {
-                log.warn("Error creating topic ", e);
-            }
-        } while (count != topics.size());
+    try {
+      res.all().get();
+    } catch (Exception e) {
+      log.warn("Error creating topic ", e);
     }
+    int count = 0;
+
+    do {
+      try {
+        Thread.sleep(100);
+        count = (int) kafkaAdminClient.listTopics().names().get().stream().filter(topics::contains)
+            .count();
+      } catch (Exception e) {
+        log.warn("Error creating topic ", e);
+      }
+    } while (count != topics.size());
+  }
 }

@@ -5,7 +5,7 @@ sleep 5 #give some time for kafka cluster to finish init on startup.
 #Start kstream services first
 
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
-           -Dotel.javaagent.extensions=/usr/src/javaapps/instrumentation-0.0.1-SNAPSHOT-all.jar \
+           -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=card-enrichment-ktable \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
@@ -14,7 +14,7 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
            -jar kstream-app-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 sleep 10
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
-           -Dotel.javaagent.extensions=/usr/src/javaapps/instrumentation-0.0.1-SNAPSHOT-all.jar \
+           -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=balance-verification \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
@@ -23,7 +23,7 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
            -jar kstream-app-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
-           -Dotel.javaagent.extensions=/usr/src/javaapps/instrumentation-0.0.1-SNAPSHOT-all.jar \
+           -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=entity-enrichment \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
@@ -32,7 +32,7 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
            -jar kstream-app-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
-           -Dotel.javaagent.extensions=/usr/src/javaapps/instrumentation-0.0.1-SNAPSHOT-all.jar \
+           -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=fraud-detection \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
@@ -41,7 +41,7 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
            -jar kstream-app-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
-           -Dotel.javaagent.extensions=/usr/src/javaapps/instrumentation-0.0.1-SNAPSHOT-all.jar \
+           -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=transaction-processor \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
@@ -52,7 +52,7 @@ sleep 10
 
 # output consumer
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
-           -Dotel.javaagent.extensions=/usr/src/javaapps/instrumentation-0.0.1-SNAPSHOT-all.jar \
+           -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=transaction-sink \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
@@ -64,7 +64,7 @@ sleep 10
 #Start producers
 #Transactions producer
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.7.2.jar \
-           -Dotel.javaagent.extensions=/usr/src/javaapps/instrumentation-0.0.1-SNAPSHOT-all.jar \
+           -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=transaction-producer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \

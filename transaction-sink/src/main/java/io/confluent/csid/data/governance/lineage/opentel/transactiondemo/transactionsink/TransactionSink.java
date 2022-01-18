@@ -28,7 +28,7 @@ public class TransactionSink {
             }
         });
         KafkaConsumer<Long, Transaction> kafkaConsumer = new KafkaConsumer<>(properties());
-        kafkaConsumer.subscribe(Collections.singleton(INPUT_TOPIC));
+        kafkaConsumer.subscribe(Collections.singleton(TRANSACTION_OUTPUT_TOPIC));
         while (!stop) {
             ConsumerRecords<Long, Transaction> records = kafkaConsumer.poll(Duration.ofSeconds(2));
             if (!records.isEmpty()) {
