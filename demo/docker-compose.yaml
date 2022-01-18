@@ -70,7 +70,7 @@ services:
   jaeger-agent:
     image: jaegertracing/jaeger-agent
     hostname: jaeger-agent
-    command: ["--reporter.grpc.host-port=jaeger-collector:14250"]
+    command: [ "--reporter.grpc.host-port=jaeger-collector:14250" ]
     ports:
       - "5775:5775/udp"
       - "6831:6831/udp"
@@ -103,7 +103,7 @@ services:
   # Collector
   otel-collector:
     image: ${OTELCOL_IMG}
-    command: ["--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}"]
+    command: [ "--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}" ]
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
@@ -131,3 +131,13 @@ services:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+  splunk:
+    image: splunk/splunk:latest
+    container_name: splunk
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_HEC_TOKEN=abcd1234
+      - SPLUNK_PASSWORD=abcd1234
+    ports:
+      - 8000:8000
+      - 8088:8088
