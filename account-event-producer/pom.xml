@@ -9,7 +9,7 @@
     <version>0.0.1-SNAPSHOT</version>
   </parent>
   <groupId>io.confluent.csid.data.governance.lineage.opentel.transactiondemo</groupId>
-  <artifactId>transaction-producer</artifactId>
+  <artifactId>account-event-producer</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
@@ -92,7 +92,7 @@
           <archive>
             <manifest>
               <addClasspath>true</addClasspath>
-              <mainClass>io.confluent.csid.data.governance.lineage.opentel.transactiondemo.transactionproducer.TransactionEventService</mainClass>
+              <mainClass>io.confluent.csid.data.governance.lineage.opentel.transactiondemo.accountproducer.AccountEventService</mainClass>
             </manifest>
           </archive>
           <descriptorRefs>

@@ -9,7 +9,7 @@
     <version>0.0.1-SNAPSHOT</version>
   </parent>
   <groupId>io.confluent.csid.data.governance.lineage.opentel.transactiondemo</groupId>
-  <artifactId>transaction-producer</artifactId>
+  <artifactId>account-updates-sink</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
@@ -21,11 +21,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.javalin</groupId>
-      <artifactId>javalin</artifactId>
-      <version>4.3.0</version>
-    </dependency>
-    <dependency>
       <groupId>io.confluent.csid.data.governance.lineage.opentel.transactiondemo</groupId>
       <artifactId>common</artifactId>
       <version>0.0.1-SNAPSHOT</version>
@@ -35,11 +30,6 @@
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-streams</artifactId>
       <version>2.8.0</version>
-    </dependency>
-    <dependency>
-      <groupId>com.github.wnameless.json</groupId>
-      <artifactId>json-flattener</artifactId>
-      <version>0.12.0</version>
     </dependency>
 
     <!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-api -->
@@ -60,6 +50,16 @@
       <scope>compile</scope>
     </dependency>
     <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-api</artifactId>
+      <version>1.7.1</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-extension-annotations</artifactId>
+      <version>1.7.1</version>
+    </dependency>
+    <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
       <version>2.12.3</version>
@@ -70,9 +70,9 @@
       <version>2.12.3</version>
     </dependency>
     <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-core</artifactId>
-      <version>2.12.3</version>
+      <groupId>com.github.wnameless.json</groupId>
+      <artifactId>json-flattener</artifactId>
+      <version>0.12.0</version>
     </dependency>
   </dependencies>
   <build>
@@ -92,7 +92,7 @@
           <archive>
             <manifest>
               <addClasspath>true</addClasspath>
-              <mainClass>io.confluent.csid.data.governance.lineage.opentel.transactiondemo.transactionproducer.TransactionEventService</mainClass>
+              <mainClass>io.confluent.csid.data.governance.lineage.opentel.transactiondemo.accountupdatessink.AccountUpdatesSink</mainClass>
             </manifest>
           </archive>
           <descriptorRefs>
