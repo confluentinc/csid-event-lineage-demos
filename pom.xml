@@ -17,8 +17,12 @@
   <modules>
     <module>common</module>
     <module>transaction-producer</module>
+    <module>account-event-producer</module>
     <module>transaction-sink</module>
+    <module>account-updates-sink</module>
+    <module>balance-updates-sink</module>
     <module>kstream-app</module>
+    <module>demo-data-injector</module>
   </modules>
 
 </project>

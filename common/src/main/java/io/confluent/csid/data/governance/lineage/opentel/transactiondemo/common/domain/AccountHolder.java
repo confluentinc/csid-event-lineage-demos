@@ -12,10 +12,9 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class Address {
-    String street;
-    String city;
-    String region;
-    String postalCode;
-    String country;
+public class AccountHolder {
+    String firstName;
+    String lastName;
+    String gender;
+    Address address;
 }

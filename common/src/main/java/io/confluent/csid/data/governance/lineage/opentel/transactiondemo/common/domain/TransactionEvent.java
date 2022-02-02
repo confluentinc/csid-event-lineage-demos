@@ -1,5 +1,6 @@
 package io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.domain;
 
+import java.math.BigDecimal;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,10 +13,16 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class Address {
-    String street;
-    String city;
-    String region;
-    String postalCode;
-    String country;
+public class TransactionEvent {
+    String transactionId;
+    String accountNr;
+    BigDecimal amount;
+    Merchant merchant;
+    TransactionType transactionType;
+    TransactionStatus status;
+
+    public enum TransactionType{
+        PAYMENT,
+        DEPOSIT
+    }
 }
