@@ -151,8 +151,10 @@ services:
 
   # Collector
   otel-collector:
-    image: ${OTELCOL_IMG}
-    command: [ "--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}" ]
+    build:
+      dockerfile: Dockerfile
+      context: ./kafka-exporter
+    command: [ "--config", "/etc/otel-collector-config.yaml" ]
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
@@ -163,15 +165,18 @@ services:
       - "4317:4317"        # OTLP gRPC receiver
       - "55670:55679" # zpages extension
     depends_on:
+      - kafka
       - jaeger-agent
 
   javaapps:
-    build:
-      dockerfile: Dockerfile
-      context: ./javaapps
-    depends_on:
-      - kafka
-      - otel-collector
+   build:
+     dockerfile: Dockerfile
+     context: ./javaapps
+   ports:
+     - "5005:5005"
+   depends_on:
+     - kafka
+     - otel-collector
 
   prometheus:
     container_name: prometheus

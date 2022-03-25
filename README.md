@@ -6,6 +6,9 @@ This demo is a simple use case showing a simple credit card tracing example for 
 
 To learn more about the aims of the project please refer to the documentation at [Data Lineage](https://bit.ly/3CSnHAH)
 
+## Architecture
+
+This demo uses [Open Telemetry](https://opentelemetry.io/) to send telemetry data to downstream targets (Jaeger, Splunk, Elastic, Kafka)
 
 ## Running Demo Locally 
 Prequisites:

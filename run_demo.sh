@@ -7,5 +7,8 @@ curl https://repo1.maven.org/maven2/io/opentelemetry/javaagent/opentelemetry-jav
 cd ..
 echo "Building the demo environment"
 docker-compose build javaapps
+docker-compose build otel-collector
 docker-compose down
 docker-compose up -d
+sleep 15
+docker-compose up -d otel-collector
