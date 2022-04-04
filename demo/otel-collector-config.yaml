@@ -4,12 +4,25 @@ receivers:
       grpc:
 
 exporters:
+  kafka:
+    protocol_version: 2.6.0
+    brokers:
+      - "kafka:29092"
+    topic: spans
+    encoding: jaeger_json
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 120s
+
   prometheus:
     endpoint: "0.0.0.0:8889"
     namespace: promexample
     const_labels:
       label1: value1
   logging:
+    loglevel: debug
 
   zipkin:
     endpoint: "http://zipkin-all-in-one:9411/api/v2/spans"
@@ -56,12 +69,16 @@ extensions:
     endpoint: :55679
 
 service:
+#  telemetry:
+#    logs:
+#      level: "debug"
+
   extensions: [pprof, zpages, health_check]
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, zipkin, jaeger, splunk_hec]
+      exporters: [ logging, zipkin, jaeger, splunk_hec, kafka ]
     metrics:
       receivers: [otlp]
       processors: [batch]

@@ -8,7 +8,6 @@
     <artifactId>opentel-demo-card-transaction</artifactId>
     <version>0.0.1-SNAPSHOT</version>
   </parent>
-  <groupId>io.confluent.csid.data.governance.lineage.opentel.transactiondemo</groupId>
   <artifactId>kstream-app</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
@@ -17,6 +16,9 @@
 
     <maven.compiler.source>11</maven.compiler.source>
     <maven.compiler.target>11</maven.compiler.target>
+    <csid.common.version>1.0.8-SNAPSHOT</csid.common.version>
+    <junit.version>5.8.2</junit.version>
+    <testcontainers.version>1.16.3</testcontainers.version>
   </properties>
 
   <dependencies>
@@ -30,17 +32,17 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-      <version>1.7.25</version>
+      <version>1.7.36</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
-      <version>1.7.25</version>
+      <version>1.7.36</version>
     </dependency>
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
-      <version>1.18.20</version>
+      <version>1.18.22</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -56,17 +58,17 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
-      <version>2.12.3</version>
+      <version>2.13.2</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.12.3</version>
+      <version>2.13.2.1</version>
     </dependency>
     <dependency>
       <groupId>com.github.wnameless.json</groupId>
       <artifactId>json-flattener</artifactId>
-      <version>0.12.0</version>
+      <version>0.13.0</version>
     </dependency>
     <dependency>
       <groupId>io.confluent.csid.data.governance.lineage.opentel.transactiondemo</groupId>
@@ -74,7 +76,44 @@
       <version>0.0.1-SNAPSHOT</version>
       <scope>compile</scope>
     </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${testcontainers.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>vault</artifactId>
+      <version>${testcontainers.version}</version>
+    </dependency>
+
+    <!-- Testing -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.confluent.csid.common</groupId>
+      <artifactId>test-utils</artifactId>
+      <version>${csid.common.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
+
   <build>
     <plugins>
       <plugin>

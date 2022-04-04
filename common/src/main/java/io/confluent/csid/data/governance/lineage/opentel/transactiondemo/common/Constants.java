@@ -21,7 +21,10 @@ public class Constants {
         public static final String PAGEVIEWSTATS_OUTPUT_TOPIC = "pageview-stats-output";
         public static final String PLAINSTRING_OUTPUT_TOPIC = "plain-string-output";
         public static final String TRANSACTION_IN = "transaction-input" ;
-      public static final String BALANCE_UPDATES_TOPIC = "balance-updates";
+        public static final String BALANCE_UPDATES_TOPIC = "balance-updates";
+
+        public static final String SPAN_TOPIC = "spans";
+        public static final String GROUPED_SPAN_TOPIC = "grouped-spans";
     }
     public static final String USERID_1 = "UserId1";
     public static final String USERID_2 = "UserId2";
