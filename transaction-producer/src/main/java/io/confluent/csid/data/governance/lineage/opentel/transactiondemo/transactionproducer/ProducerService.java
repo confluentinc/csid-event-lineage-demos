@@ -4,13 +4,15 @@ import static io.confluent.csid.data.governance.lineage.opentel.transactiondemo.
 
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.Constants.Topics;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.domain.TransactionEvent;
-import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonAccountEventSerde;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonTransactionEventSerde;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.serialization.StringSerializer;
 
 @Slf4j
@@ -28,7 +30,12 @@ public class ProducerService {
   }
 
   public void produce(TransactionEvent data) {
-    kafkaProducer.send(new ProducerRecord<>(Topics.TRANSACTION_IN, data.getAccountNr(), data));
+    RecordHeaders recordHeaders = new RecordHeaders();
+    recordHeaders.add(new RecordHeader("account_nr_header", data.getAccountNr().getBytes(
+        StandardCharsets.UTF_8)));
+    kafkaProducer.send(
+        new ProducerRecord<>(Topics.TRANSACTION_IN, null, null, data.getAccountNr(), data,
+            recordHeaders));
     kafkaProducer.flush();
     log.info("Produced transaction event with key={}, value={}", data.getAccountNr(), data);
 
