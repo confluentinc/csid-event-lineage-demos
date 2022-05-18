@@ -16,7 +16,7 @@ exporters:
     format: proto
 
   jaeger:
-    endpoint: jaeger-collector:14250
+    endpoint: jaeger:14250
     tls:
       insecure: true
 
@@ -44,6 +44,11 @@ exporters:
     splunk_app_name: "OpenTelemetry-Collector Splunk Exporter"
     # Application version is used to track telemetry information for Splunk App's using HEC by App version.
     splunk_app_version: "v0.0.1"
+#  kafka:
+#    topic: spans
+#    brokers:
+#      - "kafka:29092"
+#    protocol_version: 2.6.0
 
 processors:
   batch:
@@ -61,8 +66,8 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, zipkin, jaeger, splunk_hec]
+      exporters: [logging, jaeger]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, prometheus]
+      exporters: [logging]

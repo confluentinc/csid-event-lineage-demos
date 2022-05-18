@@ -1,153 +1,225 @@
 version: "2"
 services:
-
-
-  kafka:
-    image: confluentinc/cp-server:6.2.1
-    hostname: kafka
-    container_name: kafka
-    depends_on:
-      - zookeeper
+  zookeeper-dc1:
+    image: ${REPOSITORY}/cp-zookeeper:${CONFLUENT_DOCKER_TAG}
+    hostname: zookeeper-dc1
+    container_name: zookeeper-dc1
     ports:
-      - "9092:9092"
-      - "9101:9101"
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  zookeeper-dc2:
+    image: ${REPOSITORY}/cp-zookeeper:${CONFLUENT_DOCKER_TAG}
+    hostname: zookeeper-dc2
+    container_name: zookeeper-dc2
+    ports:
+      - "2182:2182"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2182
+      ZOOKEEPER_TICK_TIME: 2000
+
+  broker-dc1:
+    image: ${REPOSITORY}/cp-server:${CONFLUENT_DOCKER_TAG}
+    hostname: broker-dc1
+    container_name: broker-dc1
+    depends_on:
+      - zookeeper-dc1
+    ports:
+      - "9091:9091"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_JMX_PORT: 9991
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-dc1:2181'
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: "http://schema-registry-dc1:8081"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-dc1:29091,PLAINTEXT_HOST://localhost:9091
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_JMX_PORT: 9101
-      KAFKA_JMX_HOSTNAME: localhost
-      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+      # Confluent Metrics Reporter for Control Center Cluster Monitoring
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
       CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:29092
       CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
       CONFLUENT_METRICS_ENABLE: 'true'
-      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
 
-  schema-registry:
-    image: confluentinc/cp-schema-registry:6.2.1
-    hostname: schema-registry
-    container_name: schema-registry
+  kafka:
+    image: ${REPOSITORY}/cp-server:${CONFLUENT_DOCKER_TAG}
+    hostname: kafka
+    container_name: kafka
     depends_on:
-      - kafka
+      - zookeeper-dc2
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_JMX_PORT: 9992
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-dc2:2182'
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: "http://schema-registry-dc2:8082"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+      # Confluent Metrics Reporter for Control Center Cluster Monitoring
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:29092
+      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      CONFLUENT_METRICS_ENABLE: 'true'
+
+  schema-registry-dc1:
+    image: ${REPOSITORY}/cp-schema-registry:${CONFLUENT_DOCKER_TAG}
+    hostname: schema-registry-dc1
+    container_name: schema-registry-dc1
+    restart: on-failure
+    depends_on:
+      - broker-dc1
     ports:
       - "8081:8081"
     environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'kafka:29092'
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry-dc1
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker-dc1:29091'
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: ERROR
+
+  schema-registry-dc2:
+    image: ${REPOSITORY}/cp-schema-registry:${CONFLUENT_DOCKER_TAG}
+    hostname: schema-registry-dc2
+    container_name: schema-registry-dc2
+    restart: on-failure
+    depends_on:
+      - broker-dc1
+      - schema-registry-dc1
+    ports:
+      - "8082:8082"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry-dc2
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker-dc1:29091'
+      SCHEMA_REGISTRY_LEADER_ELIGIBILITY: "false"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8082"
+      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: ERROR
+
+  connect-dc2:
+    image: ${REPOSITORY}/cp-enterprise-replicator:${CONFLUENT_DOCKER_TAG}
+    hostname: connect-dc2
+    container_name: connect-dc2
+    depends_on:
+      - broker-dc1
+      - schema-registry-dc1
+      - kafka
+      - schema-registry-dc2
+    ports:
+      - "8382:8382"
+      - "9892:9892"
+    volumes:
+      - $PWD/connect/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar:/tmp/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar
+      - $PWD/connect/opentelemetry-javaagent-1.13.0.jar:/tmp/opentelemetry-javaagent-1.13.0.jar
+      - $PWD/connect/insertHeaderBytes-1.0-SNAPSHOT.jar:/usr/share/java/insertHeaderBytes-1.0-SNAPSHOT.jar
+    command: "bash -c 'cp /usr/share/java/insertHeaderBytes-1.0-SNAPSHOT.jar /etc/kafka-connect/jars/;cp /usr/share/java/kafka-connect-replicator/replicator-rest-extension-*.jar /etc/kafka-connect/jars/;cp /tmp/lineage-*.jar /etc/kafka-connect/jars/; cp /tmp/opentelemetry-*.jar /etc/kafka-connect/jars;/etc/confluent/docker/run'"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'kafka:29092'
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect-dc2
+      CONNECT_LISTENERS: http://connect-dc2:8382
+      CONNECT_GROUP_ID: "connect-dc2"
+      CONNECT_PRODUCER_CLIENT_ID: "connect-worker-producer-dc2"
+      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs-dc2
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets-dc2
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: connect-status-dc2
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_PLUGIN_PATH: /usr/share/java
+      CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+      # Confluent Monitoring Interceptors for Control Center Streams Monitoring
+      CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      CONNECT_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      CONNECT_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_REST_EXTENSION_CLASSES: io.confluent.connect.replicator.monitoring.ReplicatorMonitoringExtension
+      KAFKA_JMX_PORT: 9892
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_JMX_OPTS: "${CONNECT_OPENTEL} -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false  -Dcom.sun.management.jmxremote.ssl=false -Dotel.resource.attributes=service.name=output-replicator "
+
+  connect-dc1:
+    image: ${REPOSITORY}/cp-enterprise-replicator:${CONFLUENT_DOCKER_TAG}
+    hostname: connect-dc1
+    container_name: connect-dc1
+    depends_on:
+      - broker-dc1
+      - schema-registry-dc1
+      - kafka
+      - schema-registry-dc2
+    ports:
+      - "8381:8381"
+      - "9891:9891"
+    volumes:
+      - $PWD/connect/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar:/tmp/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar
+      - $PWD/connect/opentelemetry-javaagent-1.13.0.jar:/tmp/opentelemetry-javaagent-1.13.0.jar
+      - $PWD/connect/insertHeaderBytes-1.0-SNAPSHOT.jar:/usr/share/java/insertHeaderBytes-1.0-SNAPSHOT.jar
+    command: "bash -c 'cp /usr/share/java/insertHeaderBytes-1.0-SNAPSHOT.jar /etc/kafka-connect/jars/;cp /usr/share/java/kafka-connect-replicator/replicator-rest-extension-*.jar /etc/kafka-connect/jars/;cp /tmp/lineage-*.jar /etc/kafka-connect/jars/; cp /tmp/opentelemetry-*.jar /etc/kafka-connect/jars;/etc/confluent/docker/run'"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'broker-dc1:29091'
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect-dc1
+      CONNECT_LISTENERS: http://connect-dc1:8381
+      CONNECT_GROUP_ID: "connect-dc1"
+      CONNECT_PRODUCER_CLIENT_ID: "connect-worker-producer-dc1"
+      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs-dc1
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets-dc1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: connect-status-dc1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_PLUGIN_PATH: /usr/share/java
+      CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+      # Confluent Monitoring Interceptors for Control Center Streams Monitoring
+      CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      CONNECT_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      CONNECT_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_REST_EXTENSION_CLASSES: io.confluent.connect.replicator.monitoring.ReplicatorMonitoringExtension
+      KAFKA_JMX_PORT: 9891
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_JMX_OPTS: "${CONNECT_OPENTEL} -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dotel.resource.attributes=service.name=input-replicator"
 
   control-center:
-    image: confluentinc/cp-enterprise-control-center:6.2.1
+    image: ${REPOSITORY}/cp-enterprise-control-center:${CONFLUENT_DOCKER_TAG}
     hostname: control-center
     container_name: control-center
     depends_on:
       - kafka
-      - schema-registry
+      - schema-registry-dc2
+      - connect-dc2
     ports:
       - "9021:9021"
     environment:
       CONTROL_CENTER_BOOTSTRAP_SERVERS: 'kafka:29092'
-      CONTROL_CENTER_KSQL_KSQLDB1_ADVERTISED_URL: "http://localhost:8088"
-      CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONTROL_CENTER_CONNECT_DC1_CLUSTER: http://connect-dc1:8381
+      CONTROL_CENTER_CONNECT_DC2_CLUSTER: http://connect-dc2:8382
+      CONTROL_CENTER_SCHEMA_REGISTRY_URL: http://schema-registry-dc2:8082
+      CONTROL_CENTER_KAFKA_DC1_BOOTSTRAP_SERVERS: 'broker-dc1:29091'
+      CONTROL_CENTER_KAFKA_DC2_BOOTSTRAP_SERVERS: 'kafka:29092'
       CONTROL_CENTER_REPLICATION_FACTOR: 1
       CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
       CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
+      CONTROL_CENTER_DEPRECATED_VIEWS_ENABLE: "true"
       CONFLUENT_METRICS_TOPIC_REPLICATION: 1
       PORT: 9021
 
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:6.2.1
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - 22181:2181
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.14.1
-    depends_on:
-      - elasticsearch
-    ports:
-      - 5601:5601
-    environment:
-      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
-
-  elasticsearch:
-    hostname: elasticsearch
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    restart: on-failure
-    environment:
-      - cluster.name=jaeger-cluster
-      - discovery.type=single-node
-      - http.host=0.0.0.0
-      - transport.host=127.0.0.1
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - xpack.security.enabled=false
-
-  jaeger-collector:
-    hostname: jaeger-collector
-    image: jaegertracing/jaeger-collector
-    ports:
-      - "14269:14269"
-      - "14268:14268"
-      - "14267:14267"
-      - "14250:14250"
-    restart: on-failure
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-    command: [
-        "--es.server-urls=http://elasticsearch:9200",
-        "--es.num-shards=1",
-        "--es.num-replicas=0",
-        "--log-level=error"
-    ]
-    depends_on:
-      - elasticsearch
-
-  jaeger-agent:
-    image: jaegertracing/jaeger-agent
-    hostname: jaeger-agent
-    command: [ "--reporter.grpc.host-port=jaeger-collector:14250" ]
-    ports:
-      - "5775:5775/udp"
-      - "6831:6831/udp"
-      - "6832:6832/udp"
-      - "5778:5778"
-    restart: on-failure
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-    depends_on:
-      - jaeger-collector
-
-  jaeger-query:
-    image: jaegertracing/jaeger-query
-    hostname: jaeger-query
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-      - no_proxy=localhost
+  # Jaeger
+  jaeger:
+    image: jaegertracing/all-in-one:latest
     ports:
       - "16686:16686"
-      - "16687:16687"
-    restart: on-failure
-    command: [
-        "--es.server-urls=http://elasticsearch:9200",
-        "--span-storage.type=elasticsearch",
-        "--log-level=debug"
-    ]
-    depends_on:
-      - jaeger-agent
+      - "14250"
 
   # Collector
   otel-collector:
@@ -163,7 +235,7 @@ services:
       - "4317:4317"        # OTLP gRPC receiver
       - "55670:55679" # zpages extension
     depends_on:
-      - jaeger-agent
+      - jaeger
 
   javaapps:
     build:
@@ -173,20 +245,20 @@ services:
       - kafka
       - otel-collector
 
-  prometheus:
-    container_name: prometheus
-    image: prom/prometheus:latest
-    volumes:
-      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
-  splunk:
-    image: splunk/splunk:latest
-    container_name: splunk
-    environment:
-      - SPLUNK_START_ARGS=--accept-license
-      - SPLUNK_HEC_TOKEN=abcd1234
-      - SPLUNK_PASSWORD=abcd1234
-    ports:
-      - 8000:8000
-      - 8088:8088
+ # prometheus:
+ #   container_name: prometheus
+ #   image: prom/prometheus:latest
+ #   volumes:
+ #     - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+ #   ports:
+ #     - "9090:9090"
+ # splunk:
+ #   image: splunk/splunk:latest
+ #   container_name: splunk
+ #   environment:
+ #     - SPLUNK_START_ARGS=--accept-license
+ #     - SPLUNK_HEC_TOKEN=abcd1234
+ #     - SPLUNK_PASSWORD=abcd1234
+ #   ports:
+ #     - 8000:8000
+ #     - 8088:8088
