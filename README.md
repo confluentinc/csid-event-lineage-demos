@@ -1,10 +1,10 @@
-# CSID Data Lineage Demo Project
+# CSID Event Lineage Demo Project
 
 ## Background
 
-This demo is a simple use case showing a simple credit card tracing example for the proposed CSID Data Lineage project.
+This demo is a simple use case showing a simple credit card tracing example for the proposed CSID Event Lineage project.
 
-To learn more about the aims of the project please refer to the documentation at [Data Lineage](https://bit.ly/3CSnHAH)
+To learn more about the aims of the project please refer to the documentation at [Event Lineage](https://bit.ly/3CSnHAH)
 
 
 ## Running Demo Locally 

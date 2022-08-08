@@ -44,11 +44,6 @@ exporters:
     splunk_app_name: "OpenTelemetry-Collector Splunk Exporter"
     # Application version is used to track telemetry information for Splunk App's using HEC by App version.
     splunk_app_version: "v0.0.1"
-#  kafka:
-#    topic: spans
-#    brokers:
-#      - "kafka:29092"
-#    protocol_version: 2.6.0
 
 processors:
   batch:
