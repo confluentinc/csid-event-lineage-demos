@@ -32,15 +32,11 @@ import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonAccountEventSerde;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonAccountSerde;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonTransactionEventSerde;
-import io.opentelemetry.context.propagation.TextMapGetter;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -66,30 +62,6 @@ import org.apache.kafka.streams.kstream.ValueMapper;
 @SuppressWarnings({"WeakerAccess", "unused"})
 @Slf4j
 public class KStreamApp {
-
-  static TextMapGetter<Set<Entry<String, byte[]>>> getter =
-      new TextMapGetter<>() {
-        @Override
-        public Iterable<String> keys(Set<Entry<String, byte[]>> headers) {
-          return headers.stream()
-              .map(Entry::getKey)
-              .collect(Collectors.toList());
-        }
-
-        @Override
-        public String get(Set<Entry<String, byte[]>> headers, String key) {
-          if (headers == null) {
-            return null;
-          }
-          return headers.stream()
-              .filter(e -> e.getKey().equals(key))
-              .findFirst()
-              .map(Entry::getValue)
-              .map(v -> new String(v, StandardCharsets.UTF_8))
-              .orElse(null);
-
-        }
-      };
 
   private static Properties getProperties(Class<?> valueSerde, String applicationId) {
     final Properties props = new Properties();
