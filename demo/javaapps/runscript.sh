@@ -1,6 +1,6 @@
 #!/bin/bash
 suppress_receive=true
-header_config=" -Devent.lineage.header-capture-whitelist=account_nr_header,system_id -Devent.lineage.header-propagation-whitelist=account_nr_header,system_id -Devent.lineage.header-charset=UTF-8 "
+header_config=" -Dotel.javaagent.debug=true -Devent.lineage.header-capture-whitelist=account_nr_header,system_id -Devent.lineage.header-propagation-whitelist=account_nr_header,system_id -Devent.lineage.header-charset=UTF-8 "
 sleep 5 #give some time for kafka cluster to finish init on startup.
 #Start kstream services first
 

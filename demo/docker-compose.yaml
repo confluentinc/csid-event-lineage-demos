@@ -217,6 +217,7 @@ services:
   # Jaeger
   jaeger:
     image: jaegertracing/all-in-one:latest
+    command: ["--query.max-clock-skew-adjustment=0"]
     ports:
       - "16686:16686"
       - "14250"
