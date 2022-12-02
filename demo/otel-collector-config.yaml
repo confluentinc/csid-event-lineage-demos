@@ -4,6 +4,10 @@ receivers:
       grpc:
 
 exporters:
+  otlp:
+    endpoint: "https://otlp.eu01.nr-data.net:443"
+    headers:
+      api-key: "eu01xx952b20bcfa35f80c207983e0bf2f29NRAL"
   prometheus:
     endpoint: "0.0.0.0:8889"
     namespace: promexample
@@ -47,6 +51,9 @@ exporters:
 
 processors:
   batch:
+    send_batch_size: 400
+    timeout: 200ms
+    send_batch_max_size: 800
 
 extensions:
   health_check:
@@ -61,7 +68,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, jaeger]
+      exporters: [logging, jaeger, otlp]
     metrics:
       receivers: [otlp]
       processors: [batch]

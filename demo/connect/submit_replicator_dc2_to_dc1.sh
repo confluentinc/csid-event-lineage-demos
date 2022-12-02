@@ -6,7 +6,7 @@ DATA=$( cat << EOF
   "name": "dc2-to-dc1",
   "config": {
     "connector.class": "io.confluent.connect.replicator.ReplicatorSourceConnector",
-    "topic.whitelist": "transaction-output-topic,account-output,balance-updates",
+    "topic.whitelist": "transaction-update,account-update,balance-update",
     "key.converter": "io.confluent.connect.replicator.util.ByteArrayConverter",
     "value.converter": "io.confluent.connect.replicator.util.ByteArrayConverter",
     "src.kafka.bootstrap.servers": "broker-dc1:29091",

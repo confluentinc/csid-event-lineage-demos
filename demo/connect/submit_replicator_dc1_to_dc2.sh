@@ -6,7 +6,7 @@ DATA=$( cat << EOF
   "name": "dc1-to-dc2",
   "config": {
     "connector.class": "io.confluent.connect.replicator.ReplicatorSourceConnector",
-    "topic.whitelist": "account-input,transaction-input",
+    "topic.whitelist": "account,transaction",
     "key.converter": "io.confluent.connect.replicator.util.ByteArrayConverter",
     "value.converter": "io.confluent.connect.replicator.util.ByteArrayConverter",
     "header.converter": "io.confluent.connect.replicator.util.ByteArrayConverter",

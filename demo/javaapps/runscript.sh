@@ -17,23 +17,23 @@ sleep 10
 
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
-           -Dotel.resource.attributes=service.name=account-service \
+           -Dotel.resource.attributes=service.name=account-producer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
            -Dotel.exporter.otlp.endpoint=http://otel-collector:4317/ \
            -Dotel.javaagent.debug=true \
-           -Dapp=account-service \
+           -Dapp=account-producer \
            ${header_config} \
            -jar account-event-producer-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
-           -Dotel.resource.attributes=service.name=transaction-service \
+           -Dotel.resource.attributes=service.name=transaction-producer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
            -Dotel.exporter.otlp.endpoint=http://otel-collector:4317/ \
            -Dotel.javaagent.debug=true \
-           -Dapp=transaction-service \
+           -Dapp=transaction-producer \
            ${header_config} \
            -jar transaction-producer-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
@@ -42,7 +42,7 @@ sleep 10
 # output consumers
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
-           -Dotel.resource.attributes=service.name=transaction-sink \
+           -Dotel.resource.attributes=service.name=transaction-status-consumer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
            -Dotel.exporter.otlp.endpoint=http://otel-collector:4317/ \
@@ -51,7 +51,7 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
 
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
-           -Dotel.resource.attributes=service.name=account-updates-sink \
+           -Dotel.resource.attributes=service.name=account-update-consumer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
            -Dotel.exporter.otlp.endpoint=http://otel-collector:4317/ \
@@ -60,7 +60,7 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
 
 nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
-           -Dotel.resource.attributes=service.name=balance-updates-sink \
+           -Dotel.resource.attributes=service.name=balance-update-consumer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
            -Dotel.exporter.otlp.endpoint=http://otel-collector:4317/ \

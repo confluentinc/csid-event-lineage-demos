@@ -3,9 +3,9 @@ package io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common
 public class Constants {
     public static class Topics {
 
-        public static final String ACCOUNT_IN = "account-input";
-        public static final String ACCOUNT_KTABLE = "account_ktable";
-        public static final String ACCOUNT_OUTPUT_TOPIC = "account-output";
+        public static final String ACCOUNT_IN = "account";
+        public static final String ACCOUNT_KTABLE = "accounts-ktable";
+        public static final String ACCOUNT_OUTPUT_TOPIC = "account-update";
 
 
         public static final String INPUT_TOPIC = "transaction-request-topic";
@@ -14,14 +14,14 @@ public class Constants {
         public static final String FRAUD_DETECTION_TOPIC = "fraud-detection-topic";
         public static final String TRANSACTION_PROCESSING_TOPIC = "transaction-processing-topic";
 
-        public static final String TRANSACTION_OUTPUT_TOPIC = "transaction-output-topic";
+        public static final String TRANSACTION_OUTPUT_TOPIC = "transaction-update";
         public static final String CARD_DETAILS_TOPIC = "card-details-topic";
 
 
         public static final String PAGEVIEWSTATS_OUTPUT_TOPIC = "pageview-stats-output";
         public static final String PLAINSTRING_OUTPUT_TOPIC = "plain-string-output";
-        public static final String TRANSACTION_IN = "transaction-input" ;
-      public static final String BALANCE_UPDATES_TOPIC = "balance-updates";
+        public static final String TRANSACTION_IN = "transaction" ;
+      public static final String BALANCE_UPDATES_TOPIC = "balance-update";
     }
     public static final String USERID_1 = "UserId1";
     public static final String USERID_2 = "UserId2";
