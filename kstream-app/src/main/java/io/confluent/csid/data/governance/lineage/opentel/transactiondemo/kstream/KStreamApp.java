@@ -43,7 +43,9 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
@@ -57,6 +59,7 @@ import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Named;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.kstream.ValueMapper;
+import org.apache.kafka.streams.state.KeyValueStore;
 
 @SuppressWarnings({"WeakerAccess", "unused"})
 @Slf4j
@@ -68,8 +71,9 @@ public class KStreamApp {
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_KAFKA_SERVER);
     props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.StringSerde.class);
     props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, valueSerde);
-    props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
-    props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000L);
+    //props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
+    props.put(ProducerConfig.LINGER_MS_CONFIG, 0);
+    props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 100L);
 
     // setting offset reset to earliest so that we can re-run the demo code with the same pre-loaded data
     props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -97,7 +101,10 @@ public class KStreamApp {
               }
             })
         .toTable(Named.as(Topics.ACCOUNT_KTABLE),
-            Materialized.with(Serdes.String(), jsonAccountSerde));
+            Materialized.<String, Account, KeyValueStore<Bytes, byte[]>>as("accounts-ktable")
+                .withKeySerde(Serdes.String()).withValueSerde(jsonAccountSerde));
+    accountKTable.toStream()
+        .to(Topics.ACCOUNT_OUTPUT_TOPIC, Produced.with(Serdes.String(), jsonAccountSerde));
     JsonTransactionEventSerde jsonTransactionEventSerde = new JsonTransactionEventSerde();
     builder.stream(Topics.TRANSACTION_IN,
             Consumed.with(Serdes.String(), jsonTransactionEventSerde)).join(accountKTable,
@@ -149,7 +156,9 @@ public class KStreamApp {
                                                return accountBalance;
                                              }
                                            }, Named.as("account-balances"),
-                          Materialized.with(Serdes.String(), jsonAccountBalanceSerde))
+                          Materialized.<String, AccountBalance, KeyValueStore<Bytes, byte[]>>as(
+                                  "account-balances")
+                              .withKeySerde(Serdes.String()).withValueSerde(jsonAccountBalanceSerde))
                       .toStream();
               balanceStream.mapValues(AccountBalance::getLastTransaction)
                   .to(Topics.TRANSACTION_OUTPUT_TOPIC,
