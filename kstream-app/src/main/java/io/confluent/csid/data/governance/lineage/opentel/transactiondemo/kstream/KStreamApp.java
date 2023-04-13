@@ -31,15 +31,11 @@ import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonAccountEventSerde;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonAccountSerde;
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonTransactionEventSerde;
-import io.opentelemetry.context.propagation.TextMapGetter;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +48,7 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Aggregator;
+import org.apache.kafka.streams.kstream.Branched;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Initializer;
 import org.apache.kafka.streams.kstream.KStream;
@@ -64,30 +61,6 @@ import org.apache.kafka.streams.kstream.ValueMapper;
 @SuppressWarnings({"WeakerAccess", "unused"})
 @Slf4j
 public class KStreamApp {
-
-  static TextMapGetter<Set<Entry<String, byte[]>>> getter =
-      new TextMapGetter<>() {
-        @Override
-        public Iterable<String> keys(Set<Entry<String, byte[]>> headers) {
-          return headers.stream()
-              .map(Entry::getKey)
-              .collect(Collectors.toList());
-        }
-
-        @Override
-        public String get(Set<Entry<String, byte[]>> headers, String key) {
-          if (headers == null) {
-            return null;
-          }
-          return headers.stream()
-              .filter(e -> e.getKey().equals(key))
-              .findFirst()
-              .map(Entry::getValue)
-              .map(v -> new String(v, StandardCharsets.UTF_8))
-              .orElse(null);
-
-        }
-      };
 
   private static Properties getProperties(Class<?> valueSerde, String applicationId) {
     final Properties props = new Properties();
@@ -126,65 +99,64 @@ public class KStreamApp {
         .toTable(Named.as(Topics.ACCOUNT_KTABLE),
             Materialized.with(Serdes.String(), jsonAccountSerde));
     JsonTransactionEventSerde jsonTransactionEventSerde = new JsonTransactionEventSerde();
+    builder.stream(Topics.TRANSACTION_IN,
+            Consumed.with(Serdes.String(), jsonTransactionEventSerde)).join(accountKTable,
+            Pair::of).split().branch(
+            (k, v) -> v.getRight() == null || !v.getRight().isActive()
+            , Branched.withConsumer(
+                x -> x.mapValues(v -> {
+                  TransactionEvent event =
+                      v.getLeft();
+                  if (v.getRight() == null) {
+                    event.setStatus(new TransactionStatus(Status.REJECTED, "Unknown Account"));
+                  } else {
+                    event.setStatus(new TransactionStatus(Status.REJECTED, "Inactive Account"));
+                  }
+                  return event;
+                }).to(Topics.TRANSACTION_OUTPUT_TOPIC,
+                    Produced.with(Serdes.String(), jsonTransactionEventSerde))))
+        .defaultBranch(Branched.withConsumer(
+            x -> {
+              KStream<String, AccountBalance> balanceStream =
+                  x.groupByKey().aggregate(new Initializer<AccountBalance>() {
+                                             public AccountBalance apply() {
+                                               return new AccountBalance();
+                                             }
+                                           }, new Aggregator<String, Pair<TransactionEvent, Account>, AccountBalance>() {
+                                             @Override
+                                             public AccountBalance apply(String key, Pair<TransactionEvent, Account> value,
+                                                 AccountBalance aggregate) {
+                                               String accountNr = value.getLeft().getAccountNr();
 
-    KStream<String, Pair<TransactionEvent, Account>>[] branches = builder.stream(
-        Topics.TRANSACTION_IN,
-        Consumed.with(Serdes.String(), jsonTransactionEventSerde)).join(accountKTable,
-        Pair::of).branch(
-        (k, v) -> v.getRight() == null || !v.getRight().isActive(),
-        (k, v) -> true);
+                                               AccountBalance accountBalance =
+                                                   aggregate.getAccountNr() == null ? new AccountBalance(accountNr,
+                                                       BigDecimal.valueOf(0), null) : aggregate;
+                                               BigDecimal amount = value.getLeft().getAmount();
+                                               TransactionType transactionType = value.getLeft().getTransactionType();
+                                               if (isPaymentOverAvailableBalance(value.getLeft(), accountBalance)) {
+                                                 value.getLeft().setStatus(
+                                                     new TransactionStatus(Status.REJECTED, "Insufficient funds"));
+                                               } else {
+                                                 accountBalance.setBalance(
+                                                     (transactionType.equals(
+                                                         TransactionType.DEPOSIT)
+                                                         ? accountBalance.getBalance().add(amount)
+                                                         : accountBalance.getBalance()
+                                                             .subtract(amount)));
+                                                 value.getLeft().setStatus(new TransactionStatus(Status.PROCESSED, ""));
+                                               }
+                                               accountBalance.setLastTransaction(value.getLeft());
+                                               return accountBalance;
+                                             }
+                                           }, Named.as("account-balances"),
+                          Materialized.with(Serdes.String(), jsonAccountBalanceSerde))
+                      .toStream();
+              balanceStream.mapValues(AccountBalance::getLastTransaction)
+                  .to(Topics.TRANSACTION_OUTPUT_TOPIC,
+                      Produced.with(Serdes.String(), jsonTransactionEventSerde));
+              balanceStream.to(Topics.BALANCE_UPDATES_TOPIC);
 
-    branches[0].mapValues(v -> {
-      TransactionEvent event =
-          v.getLeft();
-      if (v.getRight() == null) {
-        event.setStatus(new TransactionStatus(Status.REJECTED, "Unknown Account"));
-      } else {
-        event.setStatus(new TransactionStatus(Status.REJECTED, "Inactive Account"));
-      }
-      return event;
-    }).to(Topics.TRANSACTION_OUTPUT_TOPIC,
-        Produced.with(Serdes.String(), jsonTransactionEventSerde));
-
-    KStream<String, AccountBalance> balanceStream = branches[1].groupByKey()
-        .aggregate(new Initializer<AccountBalance>() {
-                     public AccountBalance apply() {
-                       return new AccountBalance();
-                     }
-                   }, new Aggregator<String, Pair<TransactionEvent, Account>, AccountBalance>() {
-                     @Override
-                     public AccountBalance apply(String key, Pair<TransactionEvent, Account> value,
-                         AccountBalance aggregate) {
-                       String accountNr = value.getLeft().getAccountNr();
-
-                       AccountBalance accountBalance =
-                           aggregate.getAccountNr() == null ? new AccountBalance(accountNr,
-                               BigDecimal.valueOf(0), null) : aggregate;
-                       BigDecimal amount = value.getLeft().getAmount();
-                       TransactionType transactionType = value.getLeft().getTransactionType();
-                       if (isPaymentOverAvailableBalance(value.getLeft(), accountBalance)) {
-                         value.getLeft().setStatus(
-                             new TransactionStatus(Status.REJECTED, "Insufficient funds"));
-                       } else {
-                         accountBalance.setBalance(
-                             (transactionType.equals(
-                                 TransactionType.DEPOSIT)
-                                 ? accountBalance.getBalance().add(amount)
-                                 : accountBalance.getBalance()
-                                     .subtract(amount)));
-                         value.getLeft().setStatus(new TransactionStatus(Status.PROCESSED, ""));
-                       }
-                       accountBalance.setLastTransaction(value.getLeft());
-                       return accountBalance;
-                     }
-                   }, Named.as("account-balances"),
-            Materialized.with(Serdes.String(), jsonAccountBalanceSerde))
-        .toStream();
-
-    balanceStream.mapValues(AccountBalance::getLastTransaction)
-        .to(Topics.TRANSACTION_OUTPUT_TOPIC,
-            Produced.with(Serdes.String(), jsonTransactionEventSerde));
-    balanceStream.to(Topics.BALANCE_UPDATES_TOPIC);
+            }));
 
     final KafkaStreams streams = new KafkaStreams(builder.build(), props);
     streams.cleanUp();
