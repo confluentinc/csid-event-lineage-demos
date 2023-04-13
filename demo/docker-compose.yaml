@@ -72,82 +72,13 @@ services:
     ports:
       - 22181:2181
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.14.1
-    depends_on:
-      - elasticsearch
-    ports:
-      - 5601:5601
-    environment:
-      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
-
-  elasticsearch:
-    hostname: elasticsearch
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    restart: on-failure
-    environment:
-      - cluster.name=jaeger-cluster
-      - discovery.type=single-node
-      - http.host=0.0.0.0
-      - transport.host=127.0.0.1
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - xpack.security.enabled=false
-
-  jaeger-collector:
-    hostname: jaeger-collector
-    image: jaegertracing/jaeger-collector
-    ports:
-      - "14269:14269"
-      - "14268:14268"
-      - "14267:14267"
-      - "14250:14250"
-    restart: on-failure
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-    command: [
-        "--es.server-urls=http://elasticsearch:9200",
-        "--es.num-shards=1",
-        "--es.num-replicas=0",
-        "--log-level=error"
-    ]
-    depends_on:
-      - elasticsearch
-
-  jaeger-agent:
-    image: jaegertracing/jaeger-agent
-    hostname: jaeger-agent
-    command: [ "--reporter.grpc.host-port=jaeger-collector:14250" ]
-    ports:
-      - "5775:5775/udp"
-      - "6831:6831/udp"
-      - "6832:6832/udp"
-      - "5778:5778"
-    restart: on-failure
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-    depends_on:
-      - jaeger-collector
-
-  jaeger-query:
-    image: jaegertracing/jaeger-query
-    hostname: jaeger-query
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-      - no_proxy=localhost
+  # Jaeger
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    command: ["--query.max-clock-skew-adjustment=0"]
     ports:
       - "16686:16686"
-      - "16687:16687"
-    restart: on-failure
-    command: [
-        "--es.server-urls=http://elasticsearch:9200",
-        "--span-storage.type=elasticsearch",
-        "--log-level=debug"
-    ]
-    depends_on:
-      - jaeger-agent
+      - "14250"
 
   # Collector
   otel-collector:
@@ -163,7 +94,7 @@ services:
       - "4317:4317"        # OTLP gRPC receiver
       - "55670:55679" # zpages extension
     depends_on:
-      - jaeger-agent
+      - jaeger
 
   javaapps:
     build:
@@ -180,6 +111,7 @@ services:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+
   splunk:
     image: splunk/splunk:latest
     container_name: splunk
