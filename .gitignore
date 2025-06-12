@@ -26,3 +26,16 @@ hs_err_pid*
 .idea
 *.iml
 **/*.iml
+
+# VS Code settings
+.vscode/
+
+# VS Code workspace storage (if present)
+.code-workspace
+
+# VS Code history extension
+.history/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
