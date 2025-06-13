@@ -23,7 +23,7 @@
     <dependency>
       <groupId>io.javalin</groupId>
       <artifactId>javalin</artifactId>
-      <version>6.6.0</version>
+      <version>5.6.3</version>
     </dependency>
     <dependency>
       <groupId>io.confluent.csid.data.governance.lineage.opentel.transactiondemo</groupId>
@@ -77,6 +77,22 @@
   </dependencies>
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>1.18.38</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
         <version>3.7.1</version>

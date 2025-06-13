@@ -245,8 +245,8 @@ public class DataInjector {
   }
 
   private static void pushToExecutors(AccountAction nextAction, List<ActionExecutor> sendingPool) {
-    int executorIndex = Math.abs(nextAction.accountNr.hashCode()) % 9;
-    sendingPool.get(executorIndex).addAction(nextAction.action);
+    int executorIndex = Math.abs(nextAction.getAccountNr().hashCode()) % 9;
+    sendingPool.get(executorIndex).addAction(nextAction.getAction());
   }
 
   private static Consumer<HttpClient> transferAction(String accountNr, BigDecimal amount) {
