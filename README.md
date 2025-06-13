@@ -57,15 +57,19 @@ Once up and running, you can access the following services:
 
 ## Demo Components
 
-| Component                | Description                                                                                | Trace Name                    |
-| ------------------------ | ------------------------------------------------------------------------------------------ | ----------------------------- |
-| `demo-data-injector`     | Generates mock events: Account open/close and Transaction send/withdraw                    | N/A                           |
-| `account-event-producer` | REST service publishing account events to Kafka                                            | `account-producer`            |
-| `transaction-producer`   | REST service publishing transaction events to Kafka                                        | `transaction-producer`        |
-| `kstream-app`            | Kafka Streams application with stateful processing. Maintains account state and aggregates | `account-processor`           |
-| `account-updates-sink`   | Kafka consumer writing account updates to a sink/output                                    | `account-update-consumer`     |
-| `balance-updates-sink`   | Kafka consumer writing balance updates to a sink/output                                    | `balance-update-consumer`     |
-| `transaction-sink`       | Kafka consumer writing transaction events to a sink/output                                 | `transaction-update-consumer` |
+Schemas for the JSON payloads used by the services below are in `common/src/main/java/io/confluent/csid/data/governance/lineage/opentel/transactiondemo/common/domain`
+
+Constants (including topic names) are in `common/src/main/java/io/confluent/csid/data/governance/lineage/opentel/transactiondemo/common/Constants.java`
+
+| Component                | Description                                                                                                                                                                                                                       | Trace Name                    |
+| ------------------------ |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ----------------------------- |
+| `demo-data-injector`     | Generates mock events: Account open/close and Transaction send/withdraw <br/>                                                                                                                                                     | N/A                           |
+| `account-event-producer` | REST service publishing account events to Kafka > POST on http://localhost:7070/produce-account-event                                                                                                                             | `account-producer`            |
+| `transaction-producer`   | REST service publishing transaction events to Kafka > POST on http://localhost:7071/produce-transaction-event                                                                                                                     | `transaction-producer`        |
+| `kstream-app`            | Kafka Streams application with stateful processing. Maintains account state and aggregates. <br/> Publishes account updates to a topic, verifies transactions integrity (do accounts exist? do accounts are sufficiently funded?) | `account-processor`           |
+| `account-updates-sink`   | Kafka consumer writing account updates to the console output                                                                                                                                                                      | `account-update-consumer`     |
+| `balance-updates-sink`   | Kafka consumer writing balance updates to the console output                                                                                                                                                                      | `balance-update-consumer`     |
+| `transaction-sink`       | Kafka consumer writing transaction events to the console output                                                                                                                                                                   | `transaction-update-consumer` |
 
 ---
 
