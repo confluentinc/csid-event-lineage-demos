@@ -5,6 +5,7 @@ import static io.javalin.apibuilder.ApiBuilder.post;
 
 import io.confluent.csid.data.governance.lineage.opentel.transactiondemo.common.serde.JsonAccountEventSerde;
 import io.javalin.Javalin;
+import io.javalin.http.Context;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -17,28 +18,31 @@ public class AccountEventService {
   public static void main(final String[] args) {
     ProducerService producerService = new ProducerService();
     JsonAccountEventSerde jsonAccountEventSerde = new JsonAccountEventSerde();
+    
     Javalin app = Javalin.create(config -> {
-      config.enforceSsl = false;
-      config.asyncRequestTimeout = 10_000L;
+      config.plugins.enableCors(cors -> {
+        cors.add(it -> it.anyHost());
+      });
+    });
 
-    }).routes(() -> {
-      path("produce-account-event", () ->
-          post(ctx -> {
-            log.info("Account Event: {}", new String(ctx.bodyAsBytes()));
-            producerService.produce(jsonAccountEventSerde.deserialize("", ctx.bodyAsBytes()));
-            ctx.result("OK");
-          })
-      );
+    app.routes(() -> {
+      path("/produce-account-event", () -> {
+        post(ctx -> {
+          log.info("Account Event: {}", new String(ctx.bodyAsBytes()));
+          producerService.produce(jsonAccountEventSerde.deserialize("", ctx.bodyAsBytes()));
+          ctx.result("OK");
+        });
+      });
     });
 
     Runtime.getRuntime().addShutdownHook(new Thread("account-producer-shutdown-hook") {
       @Override
       public void run() {
         producerService.close();
-        app.close();
-
+        app.stop();
       }
     });
+    
     app.start(7070);
   }
 }

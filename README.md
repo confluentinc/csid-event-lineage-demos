@@ -1,49 +1,76 @@
 # CSID Event Lineage Demo Project
 
-## Background
+## Overview
 
-This demo is a simple use case showing a simple credit card tracing example for the proposed CSID Event Lineage project.
-Corresponding demo slides - [Demo slides](https://docs.google.com/presentation/d/1AggKl7_HhRGLwgfzrGNVplR7H4WzeKdgSoKXW_c0a8I/edit#slide=id.g15b4a13f630_0_620)
+This project demonstrates a simplified credit card transaction lineage flow as part of the proposed **CSID Event Lineage** initiative.
 
-To learn more about the aims of the project please refer to the documentation at [Event Lineage](https://bit.ly/3CSnHAH)
+- [Presentation Slides](https://docs.google.com/presentation/d/1AggKl7_HhRGLwgfzrGNVplR7H4WzeKdgSoKXW_c0a8I/edit#slide=id.g15b4a13f630_0_620)  
+- [Project Documentation](https://bit.ly/3CSnHAH)
 
-There are two versions of this demo - with and without Kafka Connect in the flow. This version is without the Kafka Connect. `demo-with-connect` branch has the version with Kafka Connect.
+There are two versions of this demo:
+- **This branch**: Kafka Streams-based flow (no Kafka Connect)
+- **[`demo-with-connect`](https://github.com/confluentinc/csid-event-lineage-demos/tree/demo-with-connect)**: Includes Kafka Connect in the lineage pipeline
 
-## Running Demo Locally 
-Prequisites:
-* Docker
-* Java 11 or later
-* Maven
+---
 
-First time build:
-```
+## Running the Demo Locally
+
+### Prerequisites
+
+- Docker
+- Java 11 or later
+- Maven
+
+### First-time Setup
+
+From the project root, run:
+
+```bash
 ./run_demo.sh
-```
+````
 
+This script builds and starts all required services. Initial container startup may take 1 to 2 minutes.
 
+---
 
-Once containers are up after a delay of approximately 1-2 minutes trace/payload information 
-will be available in the Jaeger UI at http://0.0.0.0:16686
+## Observability
 
-In addition:
-* Confluent Control Centre is available at http://0.0.0.0:9021
-* Metrics are made available in Prometheus at http://0.0.0.0:9090
-* Trace data can be investigated in Splunk at http://0.0.0.0:8000 with admin/abcd1234 credentials.
-* To clean up any docker container from the demo run `docker-compose down -v` from the `/demo` folder.
-* To restart the demo without rebuilding containers - `docker-compose down -v` and then `docker-compose up -d` from the `/demo` folder.
+Once up and running, you can access the following services:
 
-## Demo application composition
-* `demo-data-injector` - A simple mock data generator - generates Account open/close and Transaction send/withdraw events while keeping data correlated.
+| Component      | URL                                              | Description                              |
+| -------------- | ------------------------------------------------ | ---------------------------------------- |
+| Jaeger UI      | [http://localhost:16686](http://localhost:16686) | View end-to-end traces                   |
+| Control Center | [http://localhost:9021](http://localhost:9021)   | Confluent monitoring dashboard           |
+| Prometheus     | [http://localhost:9090](http://localhost:9090)   | Metrics and system observability         |
+| Splunk         | [http://localhost:8000](http://localhost:8000)   | Trace logs (Login: `admin` / `abcd1234`) |
 
-* `account-event-producer` - Rest web service accepting Account open/close events from data injector and publishing to Kafka topic. `account-producer` service in trace data.
+---
 
-* `transaction-producer` - Rest web service accepting Transaction send/withdraw events from data injector and publishing to Kafka topic. `transaction-producer` service in trace data.
+## Demo Lifecycle Commands
 
-* `kstream-app` - Kafka Streams application consuming account and transaction events and then processing them using state-full operations. Account state is maintained in a KTable, Balance is maintained as an Aggregate opperation of all transactions grouped by Account number. `account-processor` service in trace data.
+| Action                     | Command                                                                |
+| -------------------------- | ---------------------------------------------------------------------- |
+| Stop and remove containers | `docker-compose down -v` (run from `/demo` directory)                  |
+| Restart without rebuilding | `docker-compose down -v && docker-compose up -d` (from `/demo` folder) |
 
-* `account-updates-sink` - Kafka consumer - sink app for account updates. `account-update-consumer` service in trace data.
+---
 
-* `balance-updates-sink` - Kafka consumer - sink app for balance updates. `balance-update-consumer` service in trace data.
+## Demo Components
 
-* `transaction-sink` - Kafka consumer - sink app for transaction updates. `transaction-update-consumer` service in trace data.
+Schemas for the JSON payloads used by the services below are in `common/src/main/java/io/confluent/csid/data/governance/lineage/opentel/transactiondemo/common/domain`
 
+Constants (including topic names) are in `common/src/main/java/io/confluent/csid/data/governance/lineage/opentel/transactiondemo/common/Constants.java`
+
+| Component                | Description                                                                                                                                                                                                                       | Trace Name                    |
+| ------------------------ |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ----------------------------- |
+| `demo-data-injector`     | Generates mock events: Account open/close and Transaction send/withdraw <br/> Sends data through the 2 REST endpoints below.                                                                                                      | N/A                           |
+| `account-event-producer` | REST service publishing account events to Kafka > POST on http://localhost:7070/produce-account-event                                                                                                                             | `account-producer`            |
+| `transaction-producer`   | REST service publishing transaction events to Kafka > POST on http://localhost:7071/produce-transaction-event                                                                                                                     | `transaction-producer`        |
+| `kstream-app`            | Kafka Streams application with stateful processing. Maintains account state and aggregates. <br/> Publishes account updates to a topic, verifies transactions integrity (do accounts exist? do accounts are sufficiently funded?) | `account-processor`           |
+| `account-updates-sink`   | Kafka consumer writing account updates to the console output (use as a starting point for consumer actions)                                                                                                                       | `account-update-consumer`     |
+| `balance-updates-sink`   | Kafka consumer writing balance updates to the console output                                                                                                                                                                      | `balance-update-consumer`     |
+| `transaction-sink`       | Kafka consumer writing transaction events to the console output                                                                                                                                                                   | `transaction-update-consumer` |
+
+---
+
+For any issues or contributions, please open a GitHub issue or submit a pull request.
