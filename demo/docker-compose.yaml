@@ -1,7 +1,12 @@
 version: "2"
+
+x-amd64: &amd64
+  platform: linux/amd64
+
 services:
 
   zookeeper:
+    <<: *amd64
     image: confluentinc/cp-zookeeper:6.2.1
     container_name: zookeeper
     ports:
@@ -11,6 +16,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
+    <<: *amd64
     image: confluentinc/cp-server:6.2.1
     container_name: kafka
     hostname: kafka
@@ -40,6 +46,7 @@ services:
       CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
 
   schema-registry:
+    <<: *amd64
     image: confluentinc/cp-schema-registry:6.2.1
     container_name: schema-registry
     hostname: schema-registry
@@ -53,6 +60,7 @@ services:
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
 
   control-center:
+    <<: *amd64
     image: confluentinc/cp-enterprise-control-center:6.2.1
     container_name: control-center
     hostname: control-center
@@ -72,6 +80,7 @@ services:
       PORT: 9021
 
   jaeger:
+    <<: *amd64
     image: jaegertracing/all-in-one:latest
     container_name: jaeger
     command: ["--query.max-clock-skew-adjustment=0"]
@@ -80,6 +89,7 @@ services:
       - "14250"
 
   otel-collector:
+    <<: *amd64
     image: ${OTELCOL_IMG}
     container_name: otel-collector
     command: [ "--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}" ]
@@ -105,6 +115,7 @@ services:
       - otel-collector
 
   prometheus:
+    <<: *amd64
     image: prom/prometheus:latest
     container_name: prometheus
     volumes:
@@ -113,8 +124,8 @@ services:
       - "9090:9090"
 
   splunk:
+    <<: *amd64
     image: splunk/splunk:latest
-    platform: linux/amd64
     container_name: splunk
     environment:
       - SPLUNK_START_ARGS=--accept-license
