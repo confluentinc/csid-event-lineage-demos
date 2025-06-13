@@ -90,9 +90,9 @@ services:
 
   otel-collector:
     <<: *amd64
-    image: ${OTELCOL_IMG}
+    image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
-    command: [ "--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}" ]
+    command: [ "--config=/etc/otel-collector-config.yaml" ]
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
