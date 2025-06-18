@@ -35,6 +35,8 @@ public class Constants {
     public static final String REGION_1 = "REGION1";
     public static final String REGION_2 = "REGION2";
 
-    public static final String BOOTSTRAP_KAFKA_SERVER = "kafka:29092";
+    public static final String BOOTSTRAP_KAFKA_SERVER =
+    System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "broker:29092");
+
 
 }

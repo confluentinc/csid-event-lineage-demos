@@ -26,6 +26,7 @@ public class ProducerService {
     props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonTransactionEventSerde.class);
     props.put(ProducerConfig.CLIENT_ID_CONFIG, "Transaction-Event-Producer");
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_KAFKA_SERVER);
+    props.put("metric.reporters", "");
     return props;
   }
 
