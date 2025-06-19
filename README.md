@@ -1,49 +1,150 @@
-# CSID Event Lineage Demo Project
+# CSID Event Lineage Demo
 
-## Background
+## Overview
 
-This demo is a simple use case showing a simple credit card tracing example for the proposed CSID Event Lineage project.
-Corresponding demo slides - [Demo slides](https://docs.google.com/presentation/d/1AggKl7_HhRGLwgfzrGNVplR7H4WzeKdgSoKXW_c0a8I/edit#slide=id.g15b4a13f630_0_620)
+This project demonstrates a credit card transaction flow with event lineage tracing using [OpenTelemetry](https://opentelemetry.io/) (OTel) and Kafka. It simulates a real-time financial system with multiple producers, stream processors, and consumers, instrumented end-to-end to support traceable and observable pipelines. This version runs **without Kafka Connect**. For the variant that includes Kafka Connect, refer to the [`demo-with-connect`](https://github.com/.../tree/demo-with-connect) branch.
 
-To learn more about the aims of the project please refer to the documentation at [Event Lineage](https://bit.ly/3CSnHAH)
+👉 [📽️ Demo Slides](https://docs.google.com/presentation/d/1AggKl7_HhRGLwgfzrGNVplR7H4WzeKdgSoKXW_c0a8I/edit#slide=id.g15b4a13f630_0_620)
+📖 [📚 Project Documentation](https://bit.ly/3CSnHAH)
 
-There are two versions of this demo - with and without Kafka Connect in the flow. This version is without the Kafka Connect. `demo-with-connect` branch has the version with Kafka Connect.
+---
 
-## Running Demo Locally 
-Prequisites:
+## Architecture at a Glance
+
+This demo tracks distributed events across services using OpenTelemetry's Java agent and custom extensions.
+
+**Core Components:**
+
+* `OpenTelemetry Java Agent` for auto-instrumentation
+* `Custom Header Extensions` for tracking lineage
+* `OpenTelemetry Collector` for telemetry routing
+* `Kafka Streams` for stateful processing
+* `Jaeger`, `Prometheus`, and `Splunk` for observability
+
+**Infrastructure:**
+
+* Single-node Kafka cluster with Schema Registry
+* Services written in Java, built with Maven
+* Containerised via Docker Compose
+
+---
+
+## Data Flow & Event Lifecycle
+
+The simulation begins with the **data injector**, which pre-loads account and merchant datasets and continuously emits synthetic events for 60 seconds:
+
+### 🔁 Event Producers
+
+| Type          | Frequency   | Payloads                     | Route                                                 |
+| ------------- | ----------- | ---------------------------- | ----------------------------------------------------- |
+| Account Open  | every 10s   | New account creation         | → `account-event-producer` → Kafka topic: `account`   |
+| Account Close | every 30s   | Close existing accounts      | (starts after 30s) → `account-event-producer`         |
+| Transactions  | every 100ms | Deposits, Payments, Failures | → `transaction-producer` → Kafka topic: `transaction` |
+
+### 🔀 Kafka Streams Logic
+
+#### Account Stream Branch
+
+* Ingests `account` events into a KTable
+* Handles state transitions (open → active, close → inactive)
+* Outputs updates to Kafka topic `account-update`
+
+#### Transaction Stream Branch
+
+* Joins transactions with the account KTable
+* Validates:
+
+  * Unknown or inactive accounts → reject
+  * Active accounts → check balance
+* Updates balances and emits results to:
+
+  * `transaction-update`
+  * `balance-update`
+
+---
+
+### 🎯 Final Outputs
+
+| Sink Application       | Kafka Topic          | Description                      |
+| ---------------------- | -------------------- | -------------------------------- |
+| `account-updates-sink` | `account-update`     | Processes account state changes  |
+| `transaction-sink`     | `transaction-update` | Handles transaction outcomes     |
+| `balance-updates-sink` | `balance-update`     | Updates running account balances |
+
+---
+
+## 🔍 Event Lineage with OpenTelemetry
+
+All services are instrumented with the OpenTelemetry Java agent (`v1.13.0`) and a custom extension for lineage tracking:
+
+* Propagates headers like `account_nr_header` and `system_id`
+* Automatically generates and correlates spans
+* Enables traceability across producer, stream, and sink layers
+* Visualisable via **Jaeger** and searchable in **Splunk**
+
+---
+
+## 🔧 How to Run
+
+### Prerequisites
+
 * Docker
-* Java 11 or later
+* Java 11+
 * Maven
 
-First time build:
-```
+### First-Time Setup
+
+```bash
 ./run_demo.sh
 ```
 
+This builds all services, starts the containers, and injects data automatically. Wait \~1–2 minutes for full initialisation.
 
+### Access the UI Components
 
-Once containers are up after a delay of approximately 1-2 minutes trace/payload information 
-will be available in the Jaeger UI at http://0.0.0.0:16686
+| Tool                     | URL                                                             |
+| ------------------------ | --------------------------------------------------------------- |
+| Jaeger (Tracing)         | [http://localhost:16686](http://localhost:16686)                |
+| Confluent Control Center | [http://localhost:9021](http://localhost:9021)                  |
+| Prometheus (Metrics)     | [http://localhost:9090](http://localhost:9090)                  |
+| Splunk (Logs)            | [http://localhost:8000](http://localhost:8000) (admin/abcd1234) |
+| OTel Collector Metrics   | [http://localhost:8888](http://localhost:8888)                  |
 
-In addition:
-* Confluent Control Centre is available at http://0.0.0.0:9021
-* Metrics are made available in Prometheus at http://0.0.0.0:9090
-* Trace data can be investigated in Splunk at http://0.0.0.0:8000 with admin/abcd1234 credentials.
-* To clean up any docker container from the demo run `docker-compose down -v` from the `/demo` folder.
-* To restart the demo without rebuilding containers - `docker-compose down -v` and then `docker-compose up -d` from the `/demo` folder.
+### Useful Commands
 
-## Demo application composition
-* `demo-data-injector` - A simple mock data generator - generates Account open/close and Transaction send/withdraw events while keeping data correlated.
+```bash
+docker-compose down -v   # Remove all containers and volumes
+docker-compose up -d     # Restart without rebuild
+```
 
-* `account-event-producer` - Rest web service accepting Account open/close events from data injector and publishing to Kafka topic. `account-producer` service in trace data.
+---
 
-* `transaction-producer` - Rest web service accepting Transaction send/withdraw events from data injector and publishing to Kafka topic. `transaction-producer` service in trace data.
+## 📦 Application Components
 
-* `kstream-app` - Kafka Streams application consuming account and transaction events and then processing them using state-full operations. Account state is maintained in a KTable, Balance is maintained as an Aggregate opperation of all transactions grouped by Account number. `account-processor` service in trace data.
+| Component                | Description                                                         |
+| ------------------------ | ------------------------------------------------------------------- |
+| `demo-data-injector`     | Emits account and transaction events over HTTP to simulate activity |
+| `account-event-producer` | REST service posting account events to Kafka                        |
+| `transaction-producer`   | REST service posting transactions to Kafka                          |
+| `kstream-app`            | Kafka Streams processor for stateful validation and transformation  |
+| `account-updates-sink`   | Kafka consumer writing processed account states                     |
+| `balance-updates-sink`   | Kafka consumer maintaining account balances                         |
+| `transaction-sink`       | Kafka consumer processing transaction results                       |
 
-* `account-updates-sink` - Kafka consumer - sink app for account updates. `account-update-consumer` service in trace data.
+---
 
-* `balance-updates-sink` - Kafka consumer - sink app for balance updates. `balance-update-consumer` service in trace data.
+## 🛠 OpenTelemetry Highlights
 
-* `transaction-sink` - Kafka consumer - sink app for transaction updates. `transaction-update-consumer` service in trace data.
+* **Auto-instrumentation**: Kafka, HTTP, JVM
+* **Custom Propagation**: Application-specific headers for correlation
+* **Span Creation & Linking**: Full trace graph from injector to sinks
+* **Prometheus Metrics**: JVM, Kafka, and custom app metrics
+* **Splunk Logs**: Searchable trace events and errors
+
+---
+
+## Notes
+
+* This version **does not use Kafka Connect**. For that version, see the [`demo-with-connect`](https://github.com/.../tree/demo-with-connect) branch.
+* All services are built to simulate a realistic, multi-service topology for testing observability, trace correlation, and lineage propagation.
 

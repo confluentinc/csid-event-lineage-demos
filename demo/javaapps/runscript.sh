@@ -1,10 +1,14 @@
 #!/bin/bash
+set -e
+
 suppress_receive=true
 header_config=" -Dotel.javaagent.debug=true -Devent.lineage.header-capture-whitelist=account_nr_header,system_id -Devent.lineage.header-propagation-whitelist=account_nr_header,system_id -Devent.lineage.header-charset=UTF-8 "
-sleep 5 #give some time for kafka cluster to finish init on startup.
-#Start kstream services first
 
-nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
+sleep 5 # Give Kafka cluster time to initialise
+
+# Start kstream services first
+nohup java -XX:-UseContainerSupport \
+           -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=account-processor \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
@@ -13,34 +17,38 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dapp=account-processor \
            ${header_config} \
            -jar kstream-app-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
+
 sleep 10
 
-nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
+# Start account producer
+nohup java -XX:-UseContainerSupport \
+           -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=account-producer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
            -Dotel.exporter.otlp.endpoint=http://otel-collector:4317/ \
-           -Dotel.javaagent.debug=true \
            -Dapp=account-producer \
            ${header_config} \
            -jar account-event-producer-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
-nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
+# Start transaction producer
+nohup java -XX:-UseContainerSupport \
+           -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=transaction-producer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
            -Dotel.instrumentation.common.experimental.suppress-messaging-receive-spans=${suppress_receive} \
            -Dotel.exporter.otlp.endpoint=http://otel-collector:4317/ \
-           -Dotel.javaagent.debug=true \
            -Dapp=transaction-producer \
            ${header_config} \
            -jar transaction-producer-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
 sleep 10
 
-# output consumers
-nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
+# Start consumers
+nohup java -XX:-UseContainerSupport \
+           -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=transaction-status-consumer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
@@ -49,7 +57,8 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            ${header_config} \
            -jar transaction-sink-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
-nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
+nohup java -XX:-UseContainerSupport \
+           -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=account-update-consumer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
@@ -58,7 +67,8 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            ${header_config} \
            -jar account-updates-sink-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
-nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
+nohup java -XX:-UseContainerSupport \
+           -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            -Dotel.javaagent.extensions=/usr/src/javaapps/lineage-opentel-extensions-0.0.1-SNAPSHOT-all.jar \
            -Dotel.resource.attributes=service.name=balance-update-consumer \
            -Dotel.instrumentation.kafka.experimental-span-attributes=true \
@@ -67,10 +77,12 @@ nohup java -javaagent:/usr/src/javaapps/opentelemetry-javaagent-1.13.0.jar \
            ${header_config} \
            -jar balance-updates-sink-0.0.1-SNAPSHOT-jar-with-dependencies.jar &
 
-#Give time for consumers to subscribe / initialize
+# Allow consumers to subscribe
 sleep 10
-#Start data injector and run for 3 minutes.
-#Transactions producer
-nohup java -jar demo-data-injector-0.0.1-SNAPSHOT-jar-with-dependencies.jar 60 &
-#keep process alive to keep container up.
+
+# Start data injector
+nohup java -XX:-UseContainerSupport \
+           -jar demo-data-injector-0.0.1-SNAPSHOT-jar-with-dependencies.jar 60 &
+
+# Keep container running
 /bin/bash -c "trap : TERM INT; sleep infinity & wait"
